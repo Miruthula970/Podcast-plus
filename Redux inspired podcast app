@@ -1,0 +1,199 @@
+dependencies {
+    // Lifecycle
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.1"
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.7.1"
+    
+    // Material Components for dynamic theming
+    implementation "com.google.android.material:material:1.9.0"
+    
+    // Coil for loading images (podcast thumbnails)
+    implementation "io.coil-kt:coil:2.5.0"
+    
+    // Coroutine for background tasks (data fetching, etc.)
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.0"
+
+    // Room for local database (optional, if you want to save podcasts)
+    implementation "androidx.room:room-runtime:2.5.1"
+    kapt "androidx.room:room-compiler:2.5.1"
+}
+data class Podcast(
+    val id: String,
+    val title: String,
+    val description: String,
+    val imageUrl: String
+)
+class PodcastViewModel : ViewModel() {
+    private val _podcastList = MutableLiveData<List<Podcast>>()
+    val podcastList: LiveData<List<Podcast>> get() = _podcastList
+    
+    private val _themeMode = MutableLiveData<ThemeMode>()
+    val themeMode: LiveData<ThemeMode> get() = _themeMode
+
+    init {
+        _themeMode.value = ThemeMode.LIGHT // Default theme
+    }
+
+    // Fetch podcast list (for example purposes, using a hardcoded list)
+    fun fetchPodcasts() {
+        val podcasts = listOf(
+            Podcast("1", "Podcast 1", "Description 1", "https://link-to-image1"),
+            Podcast("2", "Podcast 2", "Description 2", "https://link-to-image2")
+        )
+        _podcastList.value = podcasts
+    }
+
+    // Change theme mode
+    fun changeThemeMode() {
+        _themeMode.value = if (_themeMode.value == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT
+    }
+}
+
+enum class ThemeMode {
+    LIGHT, DARK
+}
+<!-- Light Theme -->
+<resources>
+    <style name="Theme.PodcastApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryVariant">@color/colorPrimaryVariant</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/colorSecondary</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+    </style>
+</resources>
+
+<!-- Dark Theme -->
+<resources>
+    <style name="Theme.PodcastApp.Dark" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimaryDark</item>
+        <item name="colorPrimaryVariant">@color/colorPrimaryVariantDark</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/colorSecondaryDark</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+    </style>
+</resources>
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var podcastViewModel: PodcastViewModel
+    private lateinit var podcastAdapter: PodcastAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        podcastViewModel = ViewModelProvider(this).get(PodcastViewModel::class.java)
+        
+        // Set the initial theme
+        applyTheme(podcastViewModel.themeMode.value)
+
+        setContentView(R.layout.activity_main)
+
+        // Set up RecyclerView
+        podcastAdapter = PodcastAdapter()
+        val recyclerView: RecyclerView = findViewById(R.id.recyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = podcastAdapter
+
+        // Observe podcast list
+        podcastViewModel.podcastList.observe(this, Observer {
+            podcastAdapter.submitList(it)
+        })
+
+        // Observe theme changes
+        podcastViewModel.themeMode.observe(this, Observer {
+            applyTheme(it)
+        })
+
+        // Fetch podcasts
+        podcastViewModel.fetchPodcasts()
+
+        // Button to toggle theme
+        val toggleButton: Button = findViewById(R.id.toggleThemeButton)
+        toggleButton.setOnClickListener {
+            podcastViewModel.changeThemeMode()
+        }
+    }
+
+    private fun applyTheme(themeMode: ThemeMode?) {
+        when (themeMode) {
+            ThemeMode.DARK -> setTheme(R.style.Theme_PodcastApp_Dark)
+            else -> setTheme(R.style.Theme_PodcastApp)
+        }
+    }
+}
+class PodcastAdapter : ListAdapter<Podcast, PodcastAdapter.PodcastViewHolder>(PodcastDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PodcastViewHolder {
+        val binding = ItemPodcastBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return PodcastViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: PodcastViewHolder, position: Int) {
+        val podcast = getItem(position)
+        holder.bind(podcast)
+    }
+
+    inner class PodcastViewHolder(private val binding: ItemPodcastBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(podcast: Podcast) {
+            binding.title.text = podcast.title
+            binding.description.text = podcast.description
+            // Load image with Coil or Glide
+            binding.imageView.load(podcast.imageUrl)
+        }
+    }
+
+    class PodcastDiffCallback : DiffUtil.ItemCallback<Podcast>() {
+        override fun areItemsTheSame(oldItem: Podcast, newItem: Podcast): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Podcast, newItem: Podcast): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <Button
+        android:id="@+id/toggleThemeButton"
+        android:text="Toggle Theme"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+    
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:src="@drawable/ic_launcher_background" />
+    
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:paddingStart="16dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Podcast Title"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/description"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Podcast Description"
+            android:textSize="14sp"
